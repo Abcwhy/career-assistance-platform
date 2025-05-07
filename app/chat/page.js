@@ -1,11 +1,38 @@
 "use client";
 
-import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { io } from "socket.io-client";
 
 export default function ChatPage() {
   const [activeSection, setActiveSection] = useState("private");
   const [showOptions, setShowOptions] = useState(false);
+  const [message, setMessage] = useState("");
+  const [chatLog, setChatLog] = useState([]);
+  const socketRef = useRef(null);
+  const roomId = "global-room"; // 可改为根据用户动态分配
+
+  // 连接 socket
+  useEffect(() => {
+    socketRef.current = io("http://localhost:5000"); // 记得修改为你的后端地址
+    socketRef.current.emit("joinRoom", roomId);
+
+    // 监听接收消息
+    socketRef.current.on("chatMessage", (msg) => {
+      setChatLog((prev) => [...prev, msg]);
+    });
+
+    // 清理连接
+    return () => {
+      socketRef.current.disconnect();
+    };
+  }, []);
+
+  const handleSend = () => {
+    if (message.trim() === "") return;
+    const msg = { message, sender: "me", roomId };
+    socketRef.current.emit("chatMessage", msg);
+    setMessage("");
+  };
 
   const toggleSection = (section) => {
     setActiveSection((prev) => (prev === section ? "" : section));
@@ -16,15 +43,12 @@ export default function ChatPage() {
       <div className="pt-[72px] flex h-screen overflow-hidden">
         {/* 左侧聊天栏 */}
         <aside className="w-48 h-screen rounded shadow flex flex-col overflow-y-auto bg-black text-white">
-          {/* 私聊按钮 */}
           <div
             className="bg-blue-500 px-4 py-4 cursor-pointer h-14 hover:text-gray-200"
             onClick={() => toggleSection("private")}
           >
             Private chat
           </div>
-
-          {/* 私聊列表 */}
           <div className={activeSection === "private" ? "bg-gray-800" : "bg-gray-200"}>
             {activeSection === "private" &&
               [...Array(4)].map((_, i) => (
@@ -34,16 +58,12 @@ export default function ChatPage() {
                 </div>
               ))}
           </div>
-
-          {/* 群聊按钮 */}
           <div
             className="bg-blue-500 px-4 py-4 cursor-pointer h-14 hover:text-gray-200"
             onClick={() => toggleSection("group")}
           >
             Group chat
           </div>
-
-          {/* 群聊列表 */}
           <div className={activeSection === "group" ? "bg-gray-800" : "bg-gray-200"}>
             {activeSection === "group" &&
               [...Array(3)].map((_, i) => (
@@ -53,26 +73,34 @@ export default function ChatPage() {
                 </div>
               ))}
           </div>
-
-          {/* 底部灰色背景块 */}
           <div className="mt-auto h-0 bg-gray-200 w-full shrink-0" />
         </aside>
 
         {/* 主聊天区域 */}
         <main className="flex-1 flex flex-col relative">
           <div className="flex-1 p-6 overflow-y-auto space-y-6">
-            <div className="flex items-start">
-              <div className="w-10 h-10 rounded-full bg-gray-300 mr-3" />
-              <div className="bg-black text-white px-4 py-2 rounded-lg rounded-bl-none max-w-xs">
-                Hello, how are you?
+            {chatLog.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`flex items-start ${msg.sender === "me" ? "justify-end" : ""}`}
+              >
+                {msg.sender !== "me" && (
+                  <div className="w-10 h-10 rounded-full bg-gray-300 mr-3" />
+                )}
+                <div
+                  className={`${
+                    msg.sender === "me"
+                      ? "bg-gray-900 rounded-br-none ml-2"
+                      : "bg-black rounded-bl-none mr-2"
+                  } text-white px-4 py-2 rounded-lg max-w-xs`}
+                >
+                  {msg.message}
+                </div>
+                {msg.sender === "me" && (
+                  <div className="w-10 h-10 rounded-full bg-gray-300 ml-3" />
+                )}
               </div>
-            </div>
-            <div className="flex items-start justify-end">
-              <div className="bg-gray-900 text-white px-4 py-2 rounded-lg rounded-br-none max-w-xs">
-                I'm good, thanks!
-              </div>
-              <div className="w-10 h-10 rounded-full bg-gray-300 ml-3" />
-            </div>
+            ))}
           </div>
 
           {/* 输入栏 */}
@@ -81,12 +109,16 @@ export default function ChatPage() {
               rows={1}
               placeholder="Type a message..."
               className="flex-1 px-4 py-2 rounded border border-gray-400 text-black resize-none overflow-y-auto max-h-[33vh] leading-snug"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
               onInput={(e) => {
                 e.target.style.height = "auto";
                 e.target.style.height = `${Math.min(e.target.scrollHeight, window.innerHeight / 3)}px`;
               }}
             />
-            <button className="px-6 py-2 bg-black text-white rounded">Send</button>
+            <button className="px-6 py-2 bg-black text-white rounded" onClick={handleSend}>
+              Send
+            </button>
           </div>
 
           {/* 展开按钮组 */}
@@ -110,9 +142,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
-
-
-
-            
-   

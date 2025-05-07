@@ -9,6 +9,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { Server } from 'socket.io';
 
 import authRoutes from './src/routes/auth.routes.js';
 import userRoutes from './src/routes/user.routes.js';
@@ -105,6 +106,33 @@ app.use((err, req, res, next) => {
 });
 
 // ✅ 启动服务
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`✅ Backend running on port ${PORT}`);
+});
+
+// ✅ 设置 Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: 'http://localhost:3000',
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+io.on('connection', (socket) => {
+  console.log('🔗 New client connected');
+
+  socket.on('joinRoom', (roomId) => {
+    socket.join(roomId);
+    console.log(`🛏️  Joined room: ${roomId}`);
+  });
+
+  socket.on('chatMessage', (msg) => {
+    io.to(msg.roomId).emit('chatMessage', msg);
+    console.log(`📨 Message: ${msg.message} from ${msg.sender}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('❌ Client disconnected');
+  });
 });
